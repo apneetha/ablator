@@ -14,6 +14,8 @@ from ablator.analysis.results import Results
 from ablator.analysis.plot.utils import parse_name_remap
 from ablator.config.proto import Optim
 from ablator.analysis.plot.num_plot import LinearPlot
+from ablator.analysis.main import Analysis
+from ablator.analysis.results import Results, Optim
 
 
 @pytest.mark.order(1)
@@ -376,6 +378,124 @@ def test_violin_plot():
         == f"Mean: {p.attribute_metric_map[i].mean():.2e}\nBest: {p.attribute_metric_map[i].max():.2e}\n{i}"
         for i, l in enumerate(ax.get_xticklabels())
     )
+
+def test_get_best_results_by_metric():
+    # Create a sample dataframe
+    raw_results = pd.DataFrame({
+        "trial_uid": [1, 1, 2, 2, 3],
+        "metric_1": [0.5, 0.6, 0.7, 0.8, 0.9],
+        "metric_2": [0.3, 0.4, 0.2, 0.1, 0.5]
+    })
+
+    metric_map = {
+        "metric_1": Optim.min,
+        "metric_2": Optim.max
+    }
+
+    # Call the _get_best_results_by_metric method
+    result_df = Analysis._get_best_results_by_metric(raw_results, metric_map)
+
+    # Define expected results
+    expected_columns = ["trial_uid", "metric_1", "metric_2", "best"]
+
+    # Check if the result DataFrame has the expected columns
+    assert list(result_df.columns) == expected_columns
+
+    # Check if the best results are selected correctly for each metric
+    assert result_df.loc[result_df["best"] == "metric_1", "metric_1"].min() == 0.5
+    assert result_df.loc[result_df["best"] == "metric_2", "metric_2"].max() == 0.5
+
+
+def test_remap_results():
+    # Create sample dataframes
+    attributes = pd.DataFrame({"color": ["red", "blue"], "size": [10, 20]})
+    metrics = pd.DataFrame({"loss": [0.5, 0.4], "accuracy": [0.8, 0.9]})
+    metric_map = {"loss": Optim.min, "accuracy": Optim.max}
+    metric_name_remap = {"loss": "error", "accuracy": "acc"}
+    attribute_name_remap = {"color": "c", "size": "s"}
+
+    # Call the _remap_results method
+    remapped_attrs, remapped_metrics, updated_map = Analysis._remap_results(
+        attributes, metrics, metric_map,
+        metric_name_remap=metric_name_remap,
+        attribute_name_remap=attribute_name_remap
+    )
+
+    # Check if the remapping worked correctly
+    assert list(remapped_attrs.columns) == ["c", "s"]
+    assert list(remapped_metrics.columns) == ["error", "acc"]
+    assert updated_map == {"error": Optim.min, "acc": Optim.max}
+
+def test_analysis_numerical_attributes_none():
+    # Create a sample DataFrame (for testing purposes)
+    sample_data = {'color': ['red', 'blue'], 'size': [10, 20]}
+    sample_df = pd.DataFrame(sample_data)
+
+    # Define the categorical attributes
+    categorical_attributes = ['color']
+
+    # Define the optimization metrics
+    optim_metrics = {'loss': 'min', 'accuracy': 'max'}
+
+    # This test expects a ValueError to be raised when numerical_attributes is None
+    with pytest.raises(ValueError, match="Must provide `_numerical_attributes`"):
+        Analysis(results=sample_df, categorical_attributes=categorical_attributes, numerical_attributes=None, optim_metrics=optim_metrics)
+
+def test_analysis_categorical_attributes_none():
+    # Create a sample DataFrame (for testing purposes)
+    sample_data = {'color': ['red', 'blue'], 'size': [10, 20]}
+    sample_df = pd.DataFrame(sample_data)
+
+    # Define the numerical attributes
+    numerical_attributes = ['size']
+
+    # Define the optimization metrics
+    optim_metrics = {'loss': 'min', 'accuracy': 'max'}
+
+    # This test expects a ValueError to be raised when categorical_attributes is None
+    with pytest.raises(ValueError, match="Must provide `categorical_attributes`"):
+        Analysis(results=sample_df, categorical_attributes=None, numerical_attributes=numerical_attributes, optim_metrics=optim_metrics)
+
+def test_analysis_optim_metrics_none():
+    # Create a sample DataFrame (for testing purposes)
+    sample_data = {'color': ['red', 'blue'], 'size': [10, 20]}
+    sample_df = pd.DataFrame(sample_data)
+
+    # Define the categorical attributes
+    categorical_attributes = ['color']
+
+    # Define the numerical attributes
+    numerical_attributes = ['size']
+
+    # This test expects a ValueError to be raised when optim_metrics is None
+    with pytest.raises(ValueError, match="Missing `optim_metrics` or unable to derive from supplied results."):
+        Analysis(results=sample_df, categorical_attributes=categorical_attributes, numerical_attributes=numerical_attributes, optim_metrics=None)
+
+
+def test_parse_results_results(tmp_path: Path, ablator_results):
+    # Create a sample Results object
+    df = pd.DataFrame(ablator_results)
+    results = Results(config=None, experiment_dir="", cache=False, use_ray=False)
+    results.data = df
+    results.categorical_attributes = ["experiment_name"]
+    results.numerical_attributes = ["batch_size"]
+    results.metric_map = {"accuracy": Optim.max, "loss": Optim.min}
+
+    # Call the _parse_results method
+    parsed_df, cat_attrs, num_attrs, metrics = Results._parse_results(results)
+
+    # Define expected results
+    expected_df = df
+    expected_cat_attrs = ["experiment_name"]
+    expected_num_attrs = ["batch_size"]
+    expected_metrics = {"accuracy": Optim.max, "loss": Optim.min}
+
+    # Check if the returned values match the expected ones
+    assert parsed_df.equals(expected_df)
+    assert cat_attrs == expected_cat_attrs
+    assert num_attrs == expected_num_attrs
+    assert metrics == expected_metrics
+
 
 
 if __name__ == "__main__":
