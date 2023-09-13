@@ -1,5 +1,6 @@
 import copy
 import io
+import os
 from pathlib import Path
 import re
 import numpy as np
@@ -12,10 +13,14 @@ from ablator.analysis.plot import Plot
 from ablator.analysis.plot.cat_plot import Categorical, ViolinPlot
 from ablator.analysis.results import Results
 from ablator.analysis.plot.utils import parse_name_remap
-from ablator.config.proto import Optim
+from ablator.config.proto import ModelConfig, Optim, TrainConfig
 from ablator.analysis.plot.num_plot import LinearPlot
 from ablator.analysis.main import Analysis
-from ablator.analysis.results import Results, Optim
+from ablator.config.mp import ParallelConfig, SearchSpace
+from ablator.config.proto import RunConfig
+from ablator.config.main import ConfigBase
+from ablator.modules.optimizer import OptimizerConfig
+from ablator.modules.scheduler import SchedulerConfig
 
 
 @pytest.mark.order(1)
@@ -379,6 +384,7 @@ def test_violin_plot():
         for i, l in enumerate(ax.get_xticklabels())
     )
 
+
 def test_get_best_results_by_metric():
     # Create a sample dataframe
     raw_results = pd.DataFrame({
@@ -404,7 +410,6 @@ def test_get_best_results_by_metric():
     # Check if the best results are selected correctly for each metric
     assert result_df.loc[result_df["best"] == "metric_1", "metric_1"].min() == 0.5
     assert result_df.loc[result_df["best"] == "metric_2", "metric_2"].max() == 0.5
-
 
 def test_remap_results():
     # Create sample dataframes
@@ -471,8 +476,7 @@ def test_analysis_optim_metrics_none():
     with pytest.raises(ValueError, match="Missing `optim_metrics` or unable to derive from supplied results."):
         Analysis(results=sample_df, categorical_attributes=categorical_attributes, numerical_attributes=numerical_attributes, optim_metrics=None)
 
-
-def test_parse_results_results(tmp_path: Path, ablator_results):
+def test_parse_results_results(tmp_path: Path,ablator_results):
     # Create a sample Results object
     df = pd.DataFrame(ablator_results)
     results = Results(config=None, experiment_dir="", cache=False, use_ray=False)
@@ -496,6 +500,161 @@ def test_parse_results_results(tmp_path: Path, ablator_results):
     assert num_attrs == expected_num_attrs
     assert metrics == expected_metrics
 
+# def test_results_init1(tmp_path,make_config):
+#     # Create a temporary experiment directory
+#     experiment_dir = tmp_path / "tmp_experiment"
+#     experiment_dir.mkdir()
+
+#     # # Create a mock config file
+#     # with open(experiment_dir / "default_config.yaml", "w") as f:
+#     #     f.write("some_config: value")
+
+#     # # Create a test configuration
+#     # class TestConfig(ParallelConfig):  # Using ConfigBase for simplicity
+#     #     search_space = {
+#     #         "param1": SearchSpace(value_range=[0, 1], value_type="float"),
+#     #         "param2": SearchSpace(value_range=[0, 1], value_type="float"),
+#     #     }
+#     #     optim_metrics = {"metric1": Optim.max}
+
+#     # Initialize Results class
+#     results = Results(config=make_config, experiment_dir=experiment_dir)
+
+#     # Add assertions as needed
+#     assert isinstance(results.config, make_config)
+#     assert isinstance(results.experiment_dir, Path)
+#     assert isinstance(results.metric_map, dict)
+#     assert isinstance(results.data, pd.DataFrame)
+#     assert isinstance(results.config_attrs, list)
+#     assert isinstance(results.search_space, dict)
+#     assert isinstance(results.numerical_attributes, list)
+#     assert isinstance(results.categorical_attributes, list)
+
+# def test_results_init(tmp_path,make_config):
+#     # Create a temporary experiment directory
+    
+#     experiment_dir = tmp_path / "tmp_experiment"
+#     experiment_dir.mkdir()
+
+#     # Create a ParallelConfig instance
+   
+
+#     # Initialize Results class
+#     results = Results(config=config, experiment_dir=experiment_dir)
+
+#     # Add assertions as needed
+#     assert isinstance(results.config, ParallelConfig)
+#     assert isinstance(results.experiment_dir, Path)
+#     assert isinstance(results.metric_map, dict)
+#     assert isinstance(results.data, pd.DataFrame)
+#     assert isinstance(results.config_attrs, list)
+#     assert isinstance(results.search_space, dict)
+#     assert isinstance(results.numerical_attributes, list)
+#     assert isinstance(results.categorical_attributes, list)
+
+def test_init_results(ablator_results):
+        results: Results = ablator_results
+        assert isinstance(results.metric_map, dict)
+        assert isinstance(results.data, pd.DataFrame)
+        assert isinstance(results.config_attrs, list)
+        assert isinstance(results.search_space, dict)
+        assert isinstance(results.numerical_attributes, list)
+        assert isinstance(results.categorical_attributes, list)
+
+
+def test_results_config_not_parallel():
+    # Create a test configuration that is not a subclass of ParallelConfig
+    class TestConfig(ConfigBase):
+        pass
+
+    # Create a temporary experiment directory
+    experiment_dir = "./tmp_experiment"
+    os.makedirs(experiment_dir, exist_ok=True)
+    try:
+        results = Results(config=TestConfig, experiment_dir=experiment_dir)
+    except ValueError as e:
+        assert str(e) == (
+            "Configuration must be subclassed from ``ParallelConfig``. "
+        )
+    else:
+        raise AssertionError("ValueError was not raised")
+    
+def test_results_single_trial_config():
+    # Create a test configuration that is a single-trial config
+    class TestConfig(RunConfig):
+        pass
+
+    # Create a temporary experiment directory
+    experiment_dir = "./tmp_experiment"
+    os.makedirs(experiment_dir, exist_ok=True)
+
+    # Check if ValueError is raised
+    try:
+        results = Results(config=TestConfig, experiment_dir=experiment_dir)
+    except ValueError as e:
+        assert str(e) == (
+            "Provided a ``RunConfig`` used for a single-trial. Analysis "
+            "is not meaningful for a single trial. Please provide a ``ParallelConfig``."
+        )
+    else:
+        raise AssertionError("ValueError was not raised")
+
+
+def test_metric_names(ablator_results):
+    #Initialize a Results object 
+    results:Results= ablator_results
+
+    # Set metric_map with 
+    results.metric_map = {"metric1": "max", "metric2": "min"}
+
+    # Call metric_names method
+    metrics = results.metric_names
+
+    # Check if the returned list is correct
+    assert metrics == ["max", "min"]
+
+def test_read_result_no_results_found():
+    # Assuming experiment_dir is a non-existent directory
+    experiment_dir = Path("nonexistent_directory")
+    config_type = None  
+
+    # Use pytest.raises to check if the RuntimeError is raised
+    with pytest.raises(RuntimeError) as exc_info:
+        Results.read_results(config_type, experiment_dir)
+
+    # Check the error message
+    assert str(exc_info.value) == f"No results found in {experiment_dir}"
+
+# def test_assert_cat_attributes(make_config,sample_example_dir):
+#     custom_config = make_config(tmp_path="/tmp/experiments/")
+
+#     # Initialize a Results object
+#     results = Results(custom_config, experiment_dir="")
+
+#     # Create a DataFrame for testing
+#     test_data = {
+#         "attr1": ["A", "A", "B", "C", "C", "C"],
+#         "attr2": ["X", "X", "Y", "Y", "Z", "Z"]
+#     }
+#     results.data = pd.DataFrame(test_data)
+
+#     # Call _assert_cat_attributes method with a list of categorical attributes
+#     categorical_attributes = ["attr1", "attr2"]
+#     results._assert_cat_attributes(categorical_attributes)
+
+#     # The above method should not raise any AssertionError
+
+#     # Create an imbalanced dataset for testing
+#     test_data_imbalanced = {
+#         "attr1": ["X", "X", "Y", "Y", "Z", "Z"],
+#         "attr2": ["X", "X", "Y", "Y", "Z", "Z"]
+#     }
+#     results.data = pd.DataFrame(test_data_imbalanced)
+
+#     # Call _assert_cat_attributes method with a list of categorical attributes
+#     with pytest.warns(UserWarning):
+#         results._assert_cat_attributes(categorical_attributes)
+
 
 
 if __name__ == "__main__":
@@ -506,3 +665,5 @@ if __name__ == "__main__":
     fn_names = [fn for fn in l if fn.startswith("test_")]
     test_fns = [l[fn] for fn in fn_names]
     run_tests_local(test_fns)
+   
+
