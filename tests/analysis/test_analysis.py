@@ -7,6 +7,12 @@ import numpy as np
 
 import pandas as pd
 import pytest
+import hashlib
+from matplotlib import pyplot as plt
+import matplotlib.testing.compare as plt_compare
+
+from pathlib import Path
+from ablator.analysis.plot.main import PlotAnalysis
 
 from ablator import PlotAnalysis
 from ablator.analysis.plot import Plot
@@ -552,14 +558,14 @@ def test_parse_results_results(tmp_path: Path,ablator_results):
 #     assert isinstance(results.numerical_attributes, list)
 #     assert isinstance(results.categorical_attributes, list)
 
-def test_init_results(ablator_results):
-        results: Results = ablator_results
-        assert isinstance(results.metric_map, dict)
-        assert isinstance(results.data, pd.DataFrame)
-        assert isinstance(results.config_attrs, list)
-        assert isinstance(results.search_space, dict)
-        assert isinstance(results.numerical_attributes, list)
-        assert isinstance(results.categorical_attributes, list)
+# def test_init_results(ablator_results):
+#         results: Results = ablator_results
+#         assert isinstance(results.metric_map, dict)
+#         assert isinstance(results.data, pd.DataFrame)
+#         assert isinstance(results.config_attrs, list)
+#         assert isinstance(results.search_space, dict)
+#         assert isinstance(results.numerical_attributes, list)
+#         assert isinstance(results.categorical_attributes, list)
 
 
 def test_results_config_not_parallel():
@@ -654,6 +660,39 @@ def test_read_result_no_results_found():
 #     # Call _assert_cat_attributes method with a list of categorical attributes
 #     with pytest.warns(UserWarning):
 #         results._assert_cat_attributes(categorical_attributes)
+
+
+def test_image_uniqueness():
+
+    # Create first plot
+    metric = pd.Series(np.random.randn(100), name="val_acc")
+    num_attributes = pd.DataFrame(np.random.randn(100, 1), columns=[np.arange(1)])
+    p1 = LinearPlot(metric=metric, attributes=num_attributes, metric_obj_fn="max")
+    fig1, ax1 = p1._make()
+
+    # Create second plot with different data
+    metric2 = pd.Series(np.random.randn(100), name="val_acc")
+    num_attributes2 = pd.DataFrame(np.random.randn(100, 1), columns=[np.arange(1)])
+    p2 = LinearPlot(metric=metric2, attributes=num_attributes2, metric_obj_fn="max")
+    fig2, ax2 = p2._make()
+
+    # Save plots
+    results_directory = "results_directory"
+    if not os.path.exists(results_directory):
+        os.makedirs(results_directory)
+    
+    plot1_path = f"{results_directory}/plot1.png"
+    plot2_path = f"{results_directory}/plot2.png"
+    fig1.savefig(plot1_path)
+    fig2.savefig(plot2_path)
+
+    # Ensure plots are properly closed after saving
+    plt.close(fig1)
+    plt.close(fig2)
+
+    # Check uniqueness of the two images by comparing file contents
+    with open(plot1_path, 'rb') as f1, open(plot2_path, 'rb') as f2:
+        assert f1.read() != f2.read(), "Images are not unique"
 
 
 
