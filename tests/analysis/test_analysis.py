@@ -1,11 +1,14 @@
 import copy
 import io
+import os
 from pathlib import Path
 import re
 import numpy as np
 
 import pandas as pd
 import pytest
+
+from unittest.mock import patch
 
 from ablator import PlotAnalysis
 from ablator.analysis.plot import Plot
@@ -14,6 +17,12 @@ from ablator.analysis.results import Results
 from ablator.analysis.plot.utils import parse_name_remap
 from ablator.config.proto import Optim
 from ablator.analysis.plot.num_plot import LinearPlot
+from ablator.analysis.main import Analysis
+from ablator.config.mp import ParallelConfig, SearchSpace
+from ablator.config.proto import RunConfig
+from ablator.config.main import ConfigBase
+from ablator.analysis.main import _parse_results
+from matplotlib.testing.compare import compare_images
 
 
 @pytest.mark.order(1)
@@ -376,6 +385,340 @@ def test_violin_plot():
         == f"Mean: {p.attribute_metric_map[i].mean():.2e}\nBest: {p.attribute_metric_map[i].max():.2e}\n{i}"
         for i, l in enumerate(ax.get_xticklabels())
     )
+
+
+def test_get_best_results_by_metric():
+    # Create a sample dataframe
+    raw_results = pd.DataFrame({
+        "trial_uid": [1, 1, 2, 2, 3],
+        "metric_1": [0.5, 0.6, 0.7, 0.8, 0.9],
+        "metric_2": [0.3, 0.4, 0.2, 0.1, 0.5]
+    })
+
+    metric_map = {
+        "metric_1": Optim.min,
+        "metric_2": Optim.max
+    }
+
+    # Call the _get_best_results_by_metric method
+    result_df = Analysis._get_best_results_by_metric(raw_results, metric_map)
+
+    # Define expected results
+    expected_columns = ["trial_uid", "metric_1", "metric_2", "best"]
+
+    # Check if the result DataFrame has the expected columns
+    assert list(result_df.columns) == expected_columns
+
+    # Check if the best results are selected correctly for each metric
+    assert result_df.loc[result_df["best"] == "metric_1", "metric_1"].min() == 0.5
+    assert result_df.loc[result_df["best"] == "metric_2", "metric_2"].max() == 0.5
+
+def test_remap_results():
+    # Create sample dataframes
+    attributes = pd.DataFrame({"color": ["red", "blue"], "size": [10, 20]})
+    metrics = pd.DataFrame({"loss": [0.5, 0.4], "accuracy": [0.8, 0.9]})
+    metric_map = {"loss": Optim.min, "accuracy": Optim.max}
+    metric_name_remap = {"loss": "error", "accuracy": "acc"}
+    attribute_name_remap = {"color": "c", "size": "s"}
+
+    # Call the _remap_results method
+    remapped_attrs, remapped_metrics, updated_map = Analysis._remap_results(
+        attributes, metrics, metric_map,
+        metric_name_remap=metric_name_remap,
+        attribute_name_remap=attribute_name_remap
+    )
+
+    # Check if the remapping worked correctly
+    assert list(remapped_attrs.columns) == ["c", "s"]
+    assert list(remapped_metrics.columns) == ["error", "acc"]
+    assert updated_map == {"error": Optim.min, "acc": Optim.max}
+
+def test_analysis_numerical_attributes_none():
+    # Create a sample DataFrame (for testing purposes)
+    sample_data = {'color': ['red', 'blue'], 'size': [10, 20]}
+    sample_df = pd.DataFrame(sample_data)
+
+    # Define the categorical attributes
+    categorical_attributes = ['color']
+
+    # Define the optimization metrics
+    optim_metrics = {'loss': 'min', 'accuracy': 'max'}
+
+    # This test expects a ValueError to be raised when numerical_attributes is None
+    with pytest.raises(ValueError, match="Must provide `_numerical_attributes`"):
+        Analysis(results=sample_df, categorical_attributes=categorical_attributes, numerical_attributes=None, optim_metrics=optim_metrics)
+
+def test_analysis_categorical_attributes_none():
+    # Create a sample DataFrame (for testing purposes)
+    sample_data = {'color': ['red', 'blue'], 'size': [10, 20]}
+    sample_df = pd.DataFrame(sample_data)
+
+    # Define the numerical attributes
+    numerical_attributes = ['size']
+
+    # Define the optimization metrics
+    optim_metrics = {'loss': 'min', 'accuracy': 'max'}
+
+    # This test expects a ValueError to be raised when categorical_attributes is None
+    with pytest.raises(ValueError, match="Must provide `categorical_attributes`"):
+        Analysis(results=sample_df, categorical_attributes=None, numerical_attributes=numerical_attributes, optim_metrics=optim_metrics)
+
+def test_analysis_optim_metrics_none():
+    # Create a sample DataFrame (for testing purposes)
+    sample_data = {'color': ['red', 'blue'], 'size': [10, 20]}
+    sample_df = pd.DataFrame(sample_data)
+
+    # Define the categorical attributes
+    categorical_attributes = ['color']
+
+    # Define the numerical attributes
+    numerical_attributes = ['size']
+
+    # This test expects a ValueError to be raised when optim_metrics is None
+    with pytest.raises(ValueError, match="Missing `optim_metrics` or unable to derive from supplied results."):
+        Analysis(results=sample_df, categorical_attributes=categorical_attributes, numerical_attributes=numerical_attributes, optim_metrics=None)
+
+def test_parse_results_results():
+    # Load the CSV data
+    results_csv_path = Path(__file__).parent.parent.joinpath("assets", "results.csv")
+    data = pd.read_csv(results_csv_path)
+    
+    # Expected attributes
+    cat_attrs_list = [
+        "model_config.activation",
+        "model_config.initialization",
+        "train_config.optimizer_config.name",
+        "model_config.mask_type",
+        "train_config.cat_nan_policy",
+        "train_config.normalization"
+    ]
+    
+    num_attrs_list = [
+        "model_config.n_heads",
+        "model_config.n_layers",
+        "model_config.d_token",
+        "model_config.d_ffn_factor",
+        "val_acc",
+        "val_rmse"
+    ]
+
+    # For the sake of the example, I'm assuming these optimization metrics:
+    metrics_map = {"val_acc": Optim.max, "val_rmse": Optim.min}
+    
+    # Test scenario: Provide a DataFrame and necessary attributes
+    parsed_df, cat_attrs, num_attrs, metrics = _parse_results(data, cat_attrs_list, num_attrs_list, metrics_map)
+    
+    assert parsed_df.equals(data)
+    assert set(cat_attrs) == set(cat_attrs_list)
+    assert set(num_attrs) == set(num_attrs_list)
+    assert metrics == metrics_map
+
+
+def test_results_config_not_parallel():
+    # Create a test configuration that is not a subclass of ParallelConfig
+    class TestConfig(ConfigBase):
+        pass
+
+    # Create a temporary experiment directory
+    experiment_dir = "./tmp_experiment"
+    os.makedirs(experiment_dir, exist_ok=True)
+    try:
+        results = Results(config=TestConfig, experiment_dir=experiment_dir)
+    except ValueError as e:
+        assert str(e) == (
+            "Configuration must be subclassed from ``ParallelConfig``. "
+        )
+    else:
+        raise AssertionError("ValueError was not raised")
+    
+def test_results_single_trial_config():
+    # Create a test configuration that is a single-trial config
+    class TestConfig(RunConfig):
+        pass
+
+    # Create a temporary experiment directory
+    experiment_dir = "./tmp_experiment"
+    os.makedirs(experiment_dir, exist_ok=True)
+
+    # Check if ValueError is raised
+    try:
+        results = Results(config=TestConfig, experiment_dir=experiment_dir)
+    except ValueError as e:
+        assert str(e) == (
+            "Provided a ``RunConfig`` used for a single-trial. Analysis "
+            "is not meaningful for a single trial. Please provide a ``ParallelConfig``."
+        )
+    else:
+        raise AssertionError("ValueError was not raised")
+
+
+def test_metric_names():
+   
+    results_csv_path = Path(__file__).parent.parent.joinpath("assets", "results.csv")
+    data = pd.read_csv(results_csv_path)
+
+    # Since we're interested in 'val_acc' and 'val_rmse', 
+    # we create a dictionary mapping them to their corresponding aggregation function
+    metric_map = {"val_acc": "max", "val_rmse": "min"}
+
+    # Extract metric names from the metric_map dictionary
+    metrics = list(metric_map.values())
+
+    # Assert whether the metrics retrieved match our expectation
+    assert metrics == ["max", "min"]
+
+
+def test_read_result_no_results_found():
+    # Assuming experiment_dir is a non-existent directory
+    experiment_dir = Path("nonexistent_directory")
+    config_type = None  
+
+    # Use pytest.raises to check if the RuntimeError is raised
+    with pytest.raises(RuntimeError) as exc_info:
+        Results.read_results(config_type, experiment_dir)
+
+    # Check the error message
+    assert str(exc_info.value) == f"No results found in {experiment_dir}"
+
+
+import logging
+
+def test_assert_cat_attributes(caplog):
+    # Set the logger level for the module to WARNING for this test
+    original_level = logging.getLogger(Results.__module__).getEffectiveLevel()
+    logging.getLogger(Results.__module__).setLevel(logging.WARNING)
+    
+    try:
+        # Mock the Results data without using the Results constructor
+        results = Results.__new__(Results)  # Create a new instance without calling __init__
+        
+        # Create a DataFrame for testing
+        test_data = {
+            "attr1": ["A", "A", "B", "C", "C", "C"],
+            "attr2": ["X", "X", "Y", "Y", "Z", "Z"]
+        }
+        results.data = pd.DataFrame(test_data)
+        
+        # Call _assert_cat_attributes method with a list of categorical attributes
+        categorical_attributes = ["attr1", "attr2"]
+        results._assert_cat_attributes(categorical_attributes)
+        
+        # There should not be any warning raised
+        assert not any(record.levelname == "WARNING" for record in caplog.records)
+        
+        # Clear caplog records
+        caplog.clear()
+        
+        # Create an imbalanced dataset for testing
+        test_data_imbalanced = {
+             "attr1": ["X", "X", "X", "X", "X", "Z"],
+             "attr2": ["X", "X", "X", "X", "X", "Z"],
+        }
+        results.data = pd.DataFrame(test_data_imbalanced)
+        
+        # Call _assert_cat_attributes method with a list of categorical attributes
+        results._assert_cat_attributes(categorical_attributes)
+        
+        # Print the actual log messages for better visibility
+        for record in caplog.records:
+            print(f"{record.levelname}: {record.message}")
+        
+        # Check for the log message
+        assert any(
+            (record.levelname == "WARNING" and "Imbalanced trials" in record.message)
+            for record in caplog.records
+        )
+    
+    finally:
+        # Reset the logger level after the test
+        logging.getLogger(Results.__module__).setLevel(original_level)
+
+
+def test_generated_plot_similarity(tmp_path: Path):
+    # 1. Load data
+    results_csv = Path(__file__).parent.parent.joinpath("assets", "results.csv")
+    df = pd.read_csv(results_csv)
+
+    # 2. Set remapping variables
+    categorical_name_remap = {
+        "model_config.activation": "Activation",
+        "model_config.initialization": "Weight Init.",
+        "train_config.optimizer_config.name": "Optimizer",
+        "model_config.mask_type": "Mask Type",
+        "train_config.cat_nan_policy": "Policy for Cat. Missing",
+        "train_config.normalization": "Dataset Normalization",
+    }
+    numerical_name_remap = {
+        "model_config.n_heads": "N. Heads",
+        "model_config.n_layers": "N. Layers",
+        "model_config.d_token": "Token Hidden Dim.",
+        "model_config.d_ffn_factor": "Hidden Dim. Factor",
+    }
+    attribute_name_remap = {**categorical_name_remap, **numerical_name_remap}
+
+    # 3. Create analysis object
+    analysis = PlotAnalysis(
+        df,
+        save_dir=tmp_path.as_posix(),
+        cache=True,
+        optim_metrics={"val_acc": "max"},
+        numerical_attributes=list(numerical_name_remap),
+        categorical_attributes=list(categorical_name_remap),
+    )
+
+    # 4. Generate plots
+    analysis.make_figures(
+        metric_name_remap={
+            "val_acc": "Accuracy",
+            "val_rmse": "RMSE",
+        },
+        attribute_name_remap=attribute_name_remap,
+    )
+
+    model_config_activation = tmp_path / "violinplot" / "val_acc" / "model_config.activation.png"
+    model_config_initialization = tmp_path / "violinplot" / "val_acc" / "model_config.initialization.png"
+    model_config_mask_type = tmp_path / "violinplot" / "val_acc" / "model_config.mask_type.png"
+   
+    result_model_config_activation = compare_images(model_config_activation, Path(__file__).parent.parent / "assets" / "violinplot" / "model_config.activation.png", 0.001, in_decorator=True)
+    assert result_model_config_activation is None
+
+    result_model_config_intialization = compare_images(model_config_initialization, Path(__file__).parent.parent / "assets" / "violinplot" / "model_config.initialization.png", 0.001, in_decorator=True)
+    assert result_model_config_intialization is None
+
+    result_model_config_mask_type = compare_images(model_config_mask_type, Path(__file__).parent.parent / "assets" / "violinplot" / "model_config.mask_type.png", 0.001, in_decorator=True)
+    assert result_model_config_mask_type is None
+
+    train_config_cat_nan_policy = tmp_path / "violinplot" / "val_acc" / "train_config.cat_nan_policy.png"
+    train_config_normalization = tmp_path /"violinplot" /"val_acc" / "train_config.normalization.png"
+    train_config_optimizer_config_name = tmp_path /"violinplot" /"val_acc" /"train_config.optimizer_config.name.png"
+
+    result_train_config_cat_nan_policy = compare_images(train_config_cat_nan_policy, Path(__file__).parent.parent / "assets" / "violinplot" / "train_config.cat_nan_policy.png", 0.001, in_decorator=True)
+    assert result_train_config_cat_nan_policy is None
+
+    result_train_config_normalization = compare_images(train_config_normalization, Path(__file__).parent.parent / "assets" / "violinplot" / "train_config.normalization.png", 0.001, in_decorator=True)
+    assert result_train_config_normalization is None
+
+    result_train_config_optimizer_config_name = compare_images(train_config_optimizer_config_name, Path(__file__).parent.parent / "assets" / "violinplot" /"train_config.optimizer_config.name.png", 0.001, in_decorator=True)
+    assert result_train_config_optimizer_config_name is None
+
+    # Linear Plot Comparison
+    model_config_d_ffn_factor = tmp_path/"linearplot" / "val_acc" / "model_config.d_ffn_factor.png"
+    model_config_d_token = tmp_path / "linearplot" / "val_acc" / "model_config.d_token.png"
+    model_config_n_heads = tmp_path / "linearplot" / "val_acc" / "model_config.n_heads.png"
+    model_config_n_layers = tmp_path / "linearplot" / "val_acc" / "model_config.n_layers.png"
+
+    result_model_config_d_ffn_factor = compare_images(model_config_d_ffn_factor, Path(__file__).parent.parent / "assets" / "linearplot" / "model_config.d_ffn_factor.png", 0.5, in_decorator=True)
+    assert result_model_config_d_ffn_factor is None
+  
+    result_model_config_d_token = compare_images(model_config_d_token, Path(__file__).parent.parent / "assets" / "linearplot" / "model_config.d_token.png", 0.5, in_decorator=True)
+    assert result_model_config_d_token is None
+
+    result_model_config_n_heads = compare_images(model_config_n_heads, Path(__file__).parent.parent / "assets" / "linearplot" / "model_config.n_heads.png", 0.5, in_decorator=True)
+    assert result_model_config_n_heads is None
+
+    result_config_n_layers = compare_images(model_config_n_layers, Path(__file__).parent.parent  / "assets" / "linearplot" / "model_config.n_layers.png", 0.5, in_decorator=True)
+    assert result_config_n_layers is None
+
 
 
 if __name__ == "__main__":
