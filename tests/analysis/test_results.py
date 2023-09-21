@@ -1,26 +1,17 @@
 import io
+import json
 import os
 from pathlib import Path
 import pandas as pd
 import pytest
 from unittest.mock import patch
 
+
 from ablator.analysis.results import Results, read_result
-from ablator.config.proto import ModelConfig
 from ablator.config.proto import RunConfig
-from ablator.config.main import ConfigBase, configclass
+from ablator.config.main import ConfigBase
 from ablator.analysis.main import _parse_results
 from ablator.config.mp import ParallelConfig
-
-@configclass
-class CustomModelConfig(ModelConfig):
-  num_filter1: int
-  num_filter2: int
-  activation: str
-
-@configclass
-class CustomParallelConfig(ParallelConfig):
-  model_config: CustomModelConfig
 
 def test_missing_config_raises_file_not_found_error(tmp_path):
     # Create a temporary directory but do not create the default_config.yaml file inside it
@@ -32,10 +23,8 @@ def test_missing_config_raises_file_not_found_error(tmp_path):
         results = Results(config=ParallelConfig, experiment_dir=experiment_dir)
 
 
-def test_parse_with_results():
-    config = CustomParallelConfig
-    mock_experiment_directory= Path(__file__).parent.parent / "assets" / "experiment_dir" 
-    results = Results(config, mock_experiment_directory)
+def test_parse_with_results(parallel_config,mock_experiment_directory):
+    results = Results(parallel_config, mock_experiment_directory)
     df, cats, nums, metrics = _parse_results(results)
     
     # Basic assertions to ensure data is returned
@@ -45,14 +34,14 @@ def test_parse_with_results():
     assert isinstance(metrics, dict)
 
 
-def test_results_init_and_make_data():
+def test_results_init_and_make_data(parallel_config,mock_experiment_directory):
     # Create an instance of the Results class  
-    mock_experiment_directory= Path(__file__).parent.parent / "assets" / "experiment_dir" 
-    results = Results(CustomParallelConfig, mock_experiment_directory)
+   
+    results = Results(parallel_config, mock_experiment_directory)
     
     # Assert the attributes after initialization
     assert results.experiment_dir == mock_experiment_directory
-    assert isinstance(results.config, CustomParallelConfig)  
+    assert isinstance(results.config, parallel_config)  
     assert isinstance(results.metric_map, dict)
     assert isinstance(results.data, pd.DataFrame)
     assert isinstance(results.config_attrs, list)
@@ -98,7 +87,7 @@ def test_results_single_trial_config():
         raise AssertionError("ValueError was not raised")
 
 
-def test_metric_names():
+def test_metric_names(parallel_config,mock_experiment_directory):
     # Given the mock data for metric_map:
     mock_metric_map = {
         'key1': 'val_loss',
@@ -106,9 +95,7 @@ def test_metric_names():
         'key3': 'val_acc',
         'key4': 'train_acc'
     }
-    
-    mock_experiment_directory= Path(__file__).parent.parent / "assets" / "experiment_dir" 
-    results = Results(CustomParallelConfig, mock_experiment_directory)
+    results = Results(parallel_config, mock_experiment_directory)
 
     # Use patch.object() to mock the metric_map attribute of the results instance
     with patch.object(results, 'metric_map', mock_metric_map):
@@ -129,10 +116,9 @@ def test_read_result_no_results_found():
     assert str(exc_info.value) == f"No results found in {experiment_dir}"
 
 
-def test_assert_cat_attributes(capture_logger, capture_output):
+def test_assert_cat_attributes(capture_logger, capture_output,parallel_config, mock_experiment_directory):
     out: io.StringIO = capture_logger()
-    mock_experiment_directory= Path(__file__).parent.parent / "assets" / "experiment_dir" 
-    results = Results(CustomParallelConfig, mock_experiment_directory)
+    results = Results(parallel_config, mock_experiment_directory)
 
     # Creating a mock dataframe
     data = {
