@@ -1,24 +1,30 @@
-# ABLATOR
+<img width="340" alt="Screenshot 2023-10-17 at 3 27 05 PM" src="https://github.com/apneetha/ablator/assets/111663232/f6b7d5b6-6c52-403d-b7bc-2e6156e64b2b"> 
 
-<img src="assets/ablator_architecture.png">
-A distributed experiment execution framework for ablation studies. ABLATOR provides a wrapper for your model and a Trainer class for you to prototype on your method and scale to thousands of experimental trials with 1 code change.
+[![Documentation](https://img.shields.io/badge/docs-Ablator_website-blue)](https://dashboard.ablator.online/landing)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/fostiropoulos/ablator)
+[![Coverage](https://img.shields.io/coveralls/github/user/repo)](LINK_TO_COVERAGE_REPORT)
+[![Downloads](https://img.shields.io/github/downloads/user/repo/total)](LINK_TO_RELEASES)
+[![Twitter Follow](https://img.shields.io/twitter/follow/username?label=Follow&style=social)](https://twitter.com/ABLATOR_ORG)
+[![Discord](https://img.shields.io/discord/YOUR_SERVER_ID?label=Discord&logo=discord&color=7289DA)](https://discord.com/invite/9dqThvGnUW)
+[![Slack](https://img.shields.io/badge/Slack-Join%20Us-blue?logo=slack)](https://ablator.slack.com/join/shared_invite/zt-23ak9ispz-HObgZSEZhyNcTTSGM_EERw#/shared-invite/email)
 
 
-Ablation studies are experiments used to identify the causal effects on a method performance. For example, `does your novel layer really improve performance?`
+ABLATOR is a tool designed to assist in the horizontal scaling of experimental trials for machine learning models, automating the process of configuring and conducting multiple experiments with various hyperparameter settings. The tool streamlines model experimentation, offers a flexible configuration system, and aids in result interpretation through visualization.
 
-## What are Ablators?
-Ablators are materials that are depleted during operation ([NASA](https://www.nasa.gov/centers/ames/thermal-protection-materials/tps-materials-development/low-density-ablators.html)). An experimental ABLATOR should not interfere with the experimental result.
 
-<img src="assets/ablator.png" width="250" height="250">
+Ablation studies involve removing specific parts of a neural network architecture or changing different aspects of the training process to examine their contributions to the model's performance.
 
-## Why ABLATOR?
- 1. Strictly typed configuration system prevents errors.
- 2. Seamless prototyping to production
- 3. Stateful experiment design. Stop, Resume, Share your experiments
- 4. Automated analysis artifacts
- 5. Template Training
+[ReadMe Figure]
 
-### What is the difference with using `xxx`
+Learn more about [Ablator Module]():
+
+- [Configuration Module](https://docs.ablator.online/notebooks/configuration-basics#Configuration-categories): Text about the module
+- [Training Module]():Text about the module
+- [Experiment Result metrics module](): Text about the module
+- [Analysis Module](https://docs.ablator.online/notebooks/interpreting-results): Text about the module
+
+
+### What does Ablator Offer?
 
 Comparison table with existing framework:
 
@@ -49,9 +55,7 @@ You can use ABLATOR with any other library i.e. PyTorch Lighting. Just wrap a Li
 
 Spend more time in the creative process of ML research and less time on dev-ops.
 
-### Pre-Release - Phase
-
-The library is under active development and a lot of the API endpoints will be removed / renamed or their functionality changed without notice.
+### How to get started with Ablator?
 
 ### Install
 
