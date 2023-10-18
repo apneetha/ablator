@@ -1,8 +1,7 @@
-<img width="340" alt="Screenshot 2023-10-17 at 3 27 05 PM" src="https://github.com/apneetha/ablator/assets/111663232/f6b7d5b6-6c52-403d-b7bc-2e6156e64b2b"> 
+<img width="340" alt="Ablator Image" src="assests/ablator2.png"> 
 
 [![Documentation](https://img.shields.io/badge/docs-Ablator_website-blue)](https://dashboard.ablator.online/landing)
 [![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/fostiropoulos/ablator)
-[![Coverage](https://img.shields.io/coveralls/github/user/repo)](LINK_TO_COVERAGE_REPORT)
 [![Downloads](https://img.shields.io/github/downloads/user/repo/total)](LINK_TO_RELEASES)
 [![Twitter Follow](https://img.shields.io/twitter/follow/username?label=Follow&style=social)](https://twitter.com/ABLATOR_ORG)
 [![Discord](https://img.shields.io/discord/YOUR_SERVER_ID?label=Discord&logo=discord&color=7289DA)](https://discord.com/invite/9dqThvGnUW)
