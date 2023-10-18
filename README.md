@@ -1,4 +1,4 @@
-<img width="340" alt="Ablator Image" src="assests/ablator2.png"> 
+<img width="340" alt="Ablator Image" src="https://github.com/apneetha/ablator/assets/111663232/f6b7d5b6-6c52-403d-b7bc-2e6156e64b2b"> 
 
 [![Documentation](https://img.shields.io/badge/docs-Ablator_website-blue)](https://dashboard.ablator.online/landing)
 [![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/fostiropoulos/ablator)
