@@ -196,7 +196,7 @@ Check out our [Development Guide](https://github.com/fostiropoulos/ablator/blob/
 ## Ablator Community
 | Platform       | Purpose                                                             | Support Level  |
 |----------------|---------------------------------------------------------------------|----------------|
-| [GitHub Issues](https://github.com/ablator) | To report issues or suggest new features. | DeepUSC Team   |
+| [GitHub Issues](https://github.com/fostiropoulos/ablator) | To report issues or suggest new features. | DeepUSC Team   |
 | [Slack](https://ablator.slack.com/join/shared_invite/zt-23ak9ispz-HObgZSEZhyNcTTSGM_EERw#/shared-invite/email)        | To collaborate with fellow Ablator users.  | Community      |
 | [Discord](https://discord.com/invite/9dqThvGnUW)       | To inquire about Ablator usage and collaborate with other Ablator enthusiasts. | Community      |
 | [Twitter](https://twitter.com/ABLATOR_ORG)       | For staying up-to-date on new features of Ablator.               | DeepUSC Team   |
